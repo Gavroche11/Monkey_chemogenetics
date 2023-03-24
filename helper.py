@@ -1,6 +1,17 @@
 import numpy as np
 import pandas as pd
+import scipy
+import scipy.stats
 
+import matplotlib.pyplot as plt
+import cv2
+import matplotlib.gridspec as gridspec
+import matplotlib.font_manager as fm
+
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+from statsmodels.stats.anova import AnovaRM
 
 def successive(frames):
     result = list()
@@ -364,3 +375,288 @@ def get_lowspeed(df, crit, filter, latency, dur):
             result.append([st+start, en+start])
 
     return np.array(result).reshape(-1, 2)
+
+def get_text(p):
+    if np.isnan(p):
+        return 'nan'
+    else:
+        p_around = '$p$ = {:.3f}'.format(p)
+        if p >= 0.05:
+            return p_around
+        elif p >= 0.01:
+            return '*   ({})'.format(p_around)
+        elif p >= 0.001:
+            return '**   ({})'.format(p_around)
+        else:
+            return '***   ({})'.format(p_around)
+
+def arial_fontprop(size, weight):
+    return fm.FontProperties(fname='font/arial.ttf', weight=weight, size=size)
+
+
+
+def draw_picture(data, title, ylabel, path):
+    p1 = scipy.stats.ttest_rel(data[0], data[1]).pvalue
+    text1 = get_text(p1)
+
+    ratios = data[1] / data[0]
+
+    p2 = scipy.stats.ttest_1samp(ratios-1, popmean=0).pvalue
+    text2 = get_text(p2)
+
+    labelprop = arial_fontprop(28, 'bold')
+    tickprop = arial_fontprop(25, 'bold')
+    legendprop = arial_fontprop(20, 'medium')
+    titleprop = arial_fontprop(30, 'bold')
+    textprop = arial_fontprop(20, 'medium')
+    textprop_2 = arial_fontprop(25, 'medium')
+
+
+    veh_color = (0.7, 0.7, 0.7, 1.0)
+    cno_color = (1.0, 0.7, 0.7, 1.0)
+
+    names = ['Monkey A', 'Monkey B', 'Monkey C']
+    markers = ['o', 's', '^']
+
+    if (data[0] == 0).any():
+
+        fig, ax = plt.subplots(figsize=(10, 10))
+
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        ax.bar([0, 1], data.mean(axis=1), color=[veh_color, cno_color], zorder=0, edgecolor='black', width=0.8)
+        ax.errorbar([0, 1], data.mean(axis=1), yerr = np.vstack(([0, 0], np.std(data, axis=1, ddof=1)/np.sqrt(data.shape[1]))), color='black', capsize=10, zorder=-10, ls='none')
+
+        for i, (name, marker) in enumerate(zip(names, markers)):
+            ax.plot([0, 1], data[:, i], color='black')
+            ax.scatter([0, 1], data[:, i], color='black', marker=marker, s=100, label=name)
+
+        line = data.max() * 1.05
+
+        ax.plot([0, 1], [line, line], color='black')
+        if text1[0] != '*':
+            ax.text(0.5, line, text1, fontproperties=textprop, ha='center', va='bottom')
+        else:
+            ax.text(0.5, line, text1, fontproperties=textprop_2, ha='center', va='bottom')
+
+        ax.set_xlim([-1, 2])
+        ax.set_xticks([0.0, 1.0])
+        ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop)
+
+        ymax, ymin = line, 0
+
+        if ymax == 0:
+            return None
+
+        scalemax, scalemin = (ymax - ymin) / 3, (ymax - ymin) / 6
+        
+        digit = int(np.floor(np.log10(scalemin)))
+        base = 10 ** digit
+        if scalemin <= base <= scalemax:
+            scale = base
+        elif scalemin <= 2 * base <= scalemax:
+            scale = 2 * base
+        elif scalemin <= 4 * base <= scalemax:
+            scale = 4 * base
+        elif scalemin <= 5 * base <= scalemax:
+            scale = 5 * base
+        elif scalemin <= 10 * base <= scalemax:
+            scale = 10 * base
+            digit += 1
+        else:
+            raise ValueError
+
+        yticksmax = int(np.ceil(ymax / scale) + 1) * scale
+        yticksmin = 0
+
+        yticks = np.around(np.arange(yticksmin, yticksmax+scale, scale), decimals=-digit)
+
+        # ax.set_ylim([0, line*1.25])
+        ax.set_yticks(yticks)
+        ax.set_yticklabels(ax.get_yticks(), fontproperties=tickprop)
+        ax.set_ylim(yticks[[0, -1]])
+        ax.set_ylabel(ylabel, fontproperties=labelprop)
+
+        
+    else:
+        fig, axs = plt.subplots(1, 2, figsize=(10, 10), gridspec_kw={'width_ratios': [1, 1], 'wspace': 0.4}, constrained_layout=True)
+        ax = axs[0]
+
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        ax.bar([0, 1], data.mean(axis=1), color=[veh_color, cno_color], zorder=0, edgecolor='black', width=0.8)
+        ax.errorbar([0, 1], data.mean(axis=1), yerr = np.vstack(([0, 0], np.std(data, axis=1, ddof=1)/np.sqrt(data.shape[1]))), color='black', capsize=10, zorder=-10, ls='none')
+
+        for i, (name, marker) in enumerate(zip(names, markers)):
+            ax.plot([0, 1], data[:, i], color='black')
+            ax.scatter([0, 1], data[:, i], color='black', marker=marker, s=100, label=name)
+
+        line = data.max() * 1.05
+
+        ax.plot([0, 1], [line, line], color='black')
+        if text1[0] != '*':
+            ax.text(0.5, line, text1, fontproperties=textprop, ha='center', va='bottom')
+        else:
+            ax.text(0.5, line, text1, fontproperties=textprop_2, ha='center', va='bottom')
+        
+
+        ax.set_xlim([-1, 2])
+        ax.set_xticks([0.0, 1.0])
+        ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop, rotation=45)
+
+        ymax, ymin = line, 0
+
+        if ymax == 0:
+            return None
+
+        scalemax, scalemin = (ymax - ymin) / 3, (ymax - ymin) / 6
+        
+        digit = int(np.floor(np.log10(scalemin)))
+        base = 10 ** digit
+        if scalemin <= base <= scalemax:
+            scale = base
+        elif scalemin <= 2 * base <= scalemax:
+            scale = 2 * base
+        elif scalemin <= 4 * base <= scalemax:
+            scale = 4 * base
+        elif scalemin <= 5 * base <= scalemax:
+            scale = 5 * base
+        elif scalemin <= 10 * base <= scalemax:
+            scale = 10 * base
+            digit += 1
+        else:
+            raise ValueError
+
+        yticksmax = int(np.ceil(ymax / scale)) * scale
+        yticksmin = 0
+
+        yticks = np.around(np.arange(yticksmin, yticksmax+scale, scale), decimals=-digit)
+
+        # ax.set_ylim([0, line*1.25])
+        ax.set_yticks(yticks)
+        ax.set_yticklabels(ax.get_yticks(), fontproperties=tickprop)
+        ax.set_ylim(yticks[[0, -1]])
+        ax.set_ylabel(ylabel, fontproperties=labelprop)
+
+        
+        ax = axs[1]
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        
+        ax.axhline(0, color='black', ls=':')
+
+        yerr = np.std(ratios, ddof=1)/np.sqrt(len(ratios))
+
+        ax.errorbar(1, ratios.mean()-1, yerr = yerr, color='black', capsize=10, zorder=0)
+
+        ax.boxplot(ratios-1, meanline=True, showmeans=True, showfliers=False, widths=0.8,
+                medianprops={'linewidth': 0}, meanprops={'color': 'red', 'linestyle': '-'}, boxprops={'facecolor': cno_color}, patch_artist=True, positions=[1], zorder=1,
+                whis=0)
+
+        for ratio, marker in zip(ratios, markers):
+            ax.plot([0, 1], [0, ratio-1], color='black', marker=marker, markersize=10, zorder=2)
+
+        ax.plot([1.5, 1.5], [0.0, ratios.mean()-1], color='black')
+        if text2[0] != '*':
+            ax.text(1.5, 0.5*(ratios.mean()-1), text2, fontproperties=textprop, ha='left', va='center', rotation=-90)
+        else:
+            ax.text(1.5, 0.5*(ratios.mean()-1), text2, fontproperties=textprop_2, ha='left', va='center', rotation=-90)
+        
+
+        ax.set_xlim([-1, 2])
+        ax.set_xticks([0.0, 1.0])
+        ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop, rotation=45)
+
+        
+        ymax, ymin = max(0.0, ratios.max()-1, ratios.mean()-1+yerr), min(0.0, ratios.min()-1, ratios.mean()-1-yerr)
+
+        scalemax, scalemin = (ymax - ymin) / 3, (ymax - ymin) / 6
+        
+        digit = int(np.floor(np.log10(scalemin)))
+        base = 10 ** digit
+        if scalemin <= base <= scalemax:
+            scale = base
+        elif scalemin <= 2 * base <= scalemax:
+            scale = 2 * base
+        elif scalemin <= 4 * base <= scalemax:
+            scale = 4 * base
+        elif scalemin <= 5 * base <= scalemax:
+            scale = 5 * base
+        elif scalemin <= 10 * base <= scalemax:
+            scale = 10 * base
+        else:
+            raise ValueError
+
+        yticksmax = int(np.ceil(ymax / scale)+1) * scale
+        yticksmin = int(np.floor(ymin / scale) - 1) * scale
+
+        yticks = np.around(np.arange(yticksmin, yticksmax+scale, scale), decimals=-digit)
+
+        ax.set_yticks(yticks)
+        ax.set_yticklabels(ax.get_yticks(), fontproperties=tickprop)
+        ax.set_ylim(yticks[[0, -1]])
+
+        ax.set_ylabel('Normalized Value', fontproperties=labelprop)    
+
+    fig.tight_layout()
+    fig.savefig(path)
+
+def draw_proportion(data, title, path):
+    fig, axs = plt.subplots(2, 1, figsize=(10, 11), gridspec_kw={'height_ratios': [1, 10], 'hspace': 0.1})
+    p = scipy.stats.ttest_rel(data[0], data[1]).pvalue
+    text = get_text(p)
+
+    labelprop = arial_fontprop(30, 'bold')
+    tickprop = arial_fontprop(25, 'bold')
+    legendprop = arial_fontprop(20, 'medium')
+    titleprop = arial_fontprop(30, 'bold')
+    textprop = arial_fontprop(20, 'medium')
+    textprop_2 = arial_fontprop(25, 'medium')
+
+
+    veh_color = (0.7, 0.7, 0.7, 1.0)
+    cno_color = (1.0, 0.7, 0.7, 1.0)
+
+    ax = axs[0]
+    ax.set_ylim([0, 1])
+    ax.set_xlim([-1, 2])
+    ax.plot([0, 1], [0, 0], color='black', clip_on=False)
+
+    if text[0] != '*':
+        ax.text(0.5, 0, text, fontproperties=textprop, ha='center', va='bottom')
+    else:
+        ax.text(0.5, 0, text, fontproperties=textprop_2, ha='center', va='bottom')
+
+    ax.set_axis_off()
+
+    names = ['Monkey A', 'Monkey B', 'Monkey C']
+    markers = ['o', 's', '^']
+
+    ax = axs[1]
+
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
+    ax.bar([0, 1], data.mean(axis=1), color=[veh_color, cno_color], zorder=0, edgecolor='black', width=0.8)
+
+    for i, (name, marker) in enumerate(zip(names, markers)):
+        ax.plot([0, 1], data[:, i], color='black')
+        ax.scatter([0, 1], data[:, i], color='black', marker=marker, s=100, label=name)
+
+    ax.set_xlim([-1, 2])
+    ax.set_xticks([0.0, 1.0])
+    ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop)
+    ax.tick_params(axis='x', pad=5)
+
+    yticks = np.array([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+
+    # ax.set_ylim([0, line*1.25])
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ax.get_yticks(), fontproperties=tickprop)
+    ax.set_ylim([0, 1])
+    ax.set_ylabel('Proportion', fontproperties=labelprop)
+
+    
+    fig.savefig(path)
