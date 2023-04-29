@@ -442,7 +442,7 @@ def draw_picture(data, title, ylabel, path):
 
         ax.set_xlim([-1, 2])
         ax.set_xticks([0.0, 1.0])
-        ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop)
+        ax.set_xticklabels(['Control', 'Activation'], fontproperties=labelprop)
 
         ymax, ymin = line, 0
 
@@ -504,7 +504,7 @@ def draw_picture(data, title, ylabel, path):
 
         ax.set_xlim([-1, 2])
         ax.set_xticks([0.0, 1.0])
-        ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop, rotation=45)
+        ax.set_xticklabels(['Control', 'Activation'], fontproperties=labelprop, rotation=45)
 
         ymax, ymin = line, 0
 
@@ -567,7 +567,7 @@ def draw_picture(data, title, ylabel, path):
 
         ax.set_xlim([-1, 2])
         ax.set_xticks([0.0, 1.0])
-        ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop, rotation=45)
+        ax.set_xticklabels(['Control', 'Activation'], fontproperties=labelprop, rotation=45)
 
         
         ymax, ymin = max(0.0, ratios.max()-1, ratios.mean()-1+yerr), min(0.0, ratios.min()-1, ratios.mean()-1-yerr)
@@ -647,7 +647,7 @@ def draw_proportion(data, title, path):
 
     ax.set_xlim([-1, 2])
     ax.set_xticks([0.0, 1.0])
-    ax.set_xticklabels(['Vehicle', 'CNO'], fontproperties=labelprop)
+    ax.set_xticklabels(['Control', 'Activation'], fontproperties=labelprop)
     ax.tick_params(axis='x', pad=5)
 
     yticks = np.array([0, 0.2, 0.4, 0.6, 0.8, 1.0])
